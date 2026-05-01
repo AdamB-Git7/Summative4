@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\Adam\\\\Downloads\\\\20260427220202_PurlySnowman_A04_20260427\" -Recurse)",
+      "Bash(Select-Object FullName)",
+      "Bash(Sort-Object FullName)",
+      "PowerShell(Get-Item *)",
+      "Bash(Expand-Archive *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\Adam\\\\Downloads\\\\20260427220202_PurlySnowman_A04_20260427\" -Recurse -Force)",
+      "Bash(Select-Object -Property FullName)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\Adam\\\\Downloads\\\\20260427220202_PurlySnowman_A04_20260427\" -Recurse -Force | ForEach-Object { $_.FullName } | Sort-Object)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\Adam\\\\UnityProjects\\\\PurlyTheMan\\\\PurlyTheSnowMan\\\\Assets\\\\ImportedScenes\" -Recurse -Force)",
+      "Bash(Select-Object -Property FullName, PSIsContainer)",
+      "PowerShell(Write-Host \"=== ImportedScenes ===\" ; Get-ChildItem -Path \"C:\\\\Users\\\\Adam\\\\UnityProjects\\\\PurlyTheMan\\\\PurlyTheSnowMan\\\\Assets\\\\ImportedScenes\" -Recurse -Force 2>$null | ForEach-Object { if \\($_.PSIsContainer\\) { Write-Host \"[DIR]  $\\($_.FullName\\)\" } else { Write-Host \"[FILE] $\\($_.FullName\\)\" } })",
+      "PowerShell(Write-Host \"=== Scenes ===\" ; Get-ChildItem -Path \"C:\\\\Users\\\\Adam\\\\UnityProjects\\\\PurlyTheMan\\\\PurlyTheSnowMan\\\\Assets\\\\Scenes\" -Recurse -Force 2>$null | ForEach-Object { if \\($_.PSIsContainer\\) { Write-Host \"[DIR]  $\\($_.FullName\\)\" } else { Write-Host \"[FILE] $\\($_.FullName\\)\" } })",
+      "Bash(Get-Content \"C:\\\\Users\\\\Adam\\\\UnityProjects\\\\PurlyTheMan\\\\PurlyTheSnowMan\\\\Assets\\\\ImportedScenes\\\\PurlySnowman_A04_20260427_Copy\\\\TextMesh Pro\\\\Resources\\\\Fonts & Materials\\\\LiberationSans SDF.asset\")",
+      "Bash(Select-String \"guid\")",
+      "Bash(Select-Object -First 3)"
+    ]
+  }
+}

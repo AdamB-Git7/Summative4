@@ -4,113 +4,103 @@ using System.IO;
 using System.Text;
 using UnityEngine;
 
-/// <summary>
-/// Centralizes score-file behavior so menu and gameplay code do not have to
-/// duplicate the same file parsing, formatting, and sorting logic.
-/// </summary>
 public static class ScoreUtility
 {
-    // Keep the score filename in one place so every script uses the same file.
+    // Store the score file name in one place.
     private const string ScoreFileName = "scores.txt";
 
-    // Only the top 5 scores are shown in the UI.
+    // Store how many scores the UI should keep.
     private const int MaxScoresToKeep = 5;
 
-    /// <summary>
-    /// Builds the full path to the persistent score file.
-    /// Unity stores this in a safe per-application data folder.
-    /// </summary>
     public static string GetScoreFilePath()
     {
+        // Build the full persistent-data path used for score storage.
         return Path.Combine(Application.persistentDataPath, ScoreFileName);
     }
 
-    /// <summary>
-    /// Appends one score entry to the score file.
-    /// </summary>
     public static void SaveScore(string playerName, int score)
     {
-        // Include the timestamp so saved lines remain readable if inspected manually.
+        // Build one CSV line containing the player name, score, and timestamp.
         string entry = $"{playerName},{score},{DateTime.Now:yyyy-MM-dd HH:mm}";
 
-        // Append instead of overwrite so all historical scores remain available.
+        // Append the new score entry to the score file.
         File.AppendAllText(GetScoreFilePath(), entry + Environment.NewLine);
 
-        // Log the final destination to help during debugging.
+        // Log the saved score path for debugging.
         Debug.Log($"Score saved: {entry} -> {GetScoreFilePath()}");
     }
 
-    /// <summary>
-    /// Loads, sorts, and trims score entries from the local file.
-    /// </summary>
     public static List<ScoreEntry> LoadTopScores()
     {
-        string filePath = GetScoreFilePath();
-        var entries = new List<ScoreEntry>();
+        // Store the final score list that will be returned.
+        List<ScoreEntry> entries = new();
 
-        // If the file does not exist yet, there are simply no scores to show.
+        // Store the current score file path.
+        string filePath = GetScoreFilePath();
+
+        // Return an empty list if no score file exists yet.
         if (!File.Exists(filePath))
         {
             return entries;
         }
 
+        // Visit each saved line in the score file.
         foreach (string line in File.ReadAllLines(filePath))
         {
-            // Ignore blank lines so malformed spacing does not break parsing.
+            // Skip blank or whitespace-only lines.
             if (string.IsNullOrWhiteSpace(line))
             {
                 continue;
             }
 
-            // The game stores data as: playerName,score,timestamp
+            // Split the CSV line into pieces.
             string[] parts = line.Split(',');
 
-            // Only accept rows where the score column parses correctly.
-            if (parts.Length >= 2 && int.TryParse(parts[1], out int score))
+            // Skip malformed lines or lines with invalid scores.
+            if (parts.Length < 2 || !int.TryParse(parts[1], out int score))
             {
-                entries.Add(new ScoreEntry
-                {
-                    playerName = parts[0],
-                    score = score
-                });
+                continue;
             }
+
+            // Add the parsed score entry to the list.
+            entries.Add(new ScoreEntry { playerName = parts[0], score = score });
         }
 
-        // Highest score should appear first.
+        // Sort the list from highest score to lowest score.
         entries.Sort((left, right) => right.score.CompareTo(left.score));
 
-        // Only keep the top N entries used by the UI.
+        // Remove extra rows if there are more than the UI wants to show.
         if (entries.Count > MaxScoresToKeep)
         {
-            entries = entries.GetRange(0, MaxScoresToKeep);
+            entries.RemoveRange(MaxScoresToKeep, entries.Count - MaxScoresToKeep);
         }
 
+        // Return the sorted and trimmed score list.
         return entries;
     }
 
-    /// <summary>
-    /// Converts score entries into the menu/high-score screen display format.
-    /// </summary>
     public static string BuildHighScoreDisplayText(List<ScoreEntry> entries)
     {
-        // Provide a friendly empty state before any games have been played.
+        // Return a friendly empty-state message when no scores exist yet.
         if (entries == null || entries.Count == 0)
         {
             return "No scores yet.\nPlay a game to set your first record!";
         }
 
-        var builder = new StringBuilder();
+        // Build the multi-line score text efficiently.
+        StringBuilder builder = new();
 
-        // Add a simple title line above the ranked list.
+        // Add the score list heading.
         builder.AppendLine("=== High Scores ===");
         builder.AppendLine();
 
+        // Add each ranked score line.
         for (int index = 0; index < entries.Count; index++)
         {
-            ScoreEntry entry = entries[index];
-            builder.AppendLine($"{index + 1}.  {entry.playerName}  -  {entry.score} pts");
+            builder.AppendLine($"{index + 1}.  {entries[index].playerName}  -  {entries[index].score} pts");
         }
 
+        // Return the final display text.
         return builder.ToString();
     }
 }

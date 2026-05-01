@@ -1,86 +1,113 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-/// <summary>
-/// Handles Purly's movement and Y-axis rotation using two distinct Input System
-/// reading methods:
-/// - Walking: Vector2 Value action via PlayerInput (WASD / arrow keys).
-/// - Rotation: 1D axis read directly from the Input System Keyboard device (Q / E).
-/// </summary>
 [RequireComponent(typeof(Rigidbody2D))]
 [RequireComponent(typeof(PlayerInput))]
 public class PlayerMovement : MonoBehaviour
 {
-    [Header("Movement")]
-    // Units per second Purly moves.
-    public float moveSpeed = 5f;
+    // Store how quickly the player moves left and right.
+    [SerializeField] private float moveSpeed = 5f;
 
-    [Header("Rotation")]
-    // Degrees per second the visual rotates around the Y axis.
-    public float rotationSpeed = 200f;
+    // Store the upward velocity applied when the player jumps.
+    [SerializeField] private float jumpForce = 10f;
 
-    [Tooltip("Assign the child visual Transform to rotate. If null, the root is rotated.")]
-    // Optional child object to rotate separately from the Rigidbody root.
-    public Transform purlyVisual;
+    // Store the transform used for the ground overlap check.
+    [SerializeField] private Transform groundCheck;
 
-    // Cached Rigidbody2D used for movement in FixedUpdate.
+    // Store the radius used for the ground overlap check.
+    [SerializeField] private float groundCheckRadius = 0.2f;
+
+    // Store which layers count as ground.
+    [SerializeField] private LayerMask groundLayer;
+
+    // Cache the player's Rigidbody2D once for reuse.
     private Rigidbody2D rb;
 
-    // Latest movement input read from the Input System.
-    private Vector2 moveInput;
+    // Store the current horizontal input value.
+    private float moveInputX;
 
-    void Awake()
+    // Store whether jump was pressed this frame.
+    private bool jumpPressedThisFrame;
+
+    private void Awake()
     {
-        // Cache the Rigidbody2D reference once instead of looking it up repeatedly.
+        // Cache the Rigidbody2D on this object.
         rb = GetComponent<Rigidbody2D>();
     }
 
-    /// <summary>
-    /// Receives the Move action value (Vector2 Value action) from PlayerInput.
-    /// WASD and arrow keys are bound in the Input Actions asset.
-    /// </summary>
-    public void OnMove(InputValue value)
+    private void Update()
     {
-        // Read the Vector2 movement action from the PlayerInput component.
-        moveInput = value.Get<Vector2>();
-    }
+        // Reset horizontal input before reading the keyboard.
+        moveInputX = 0f;
 
-    void Update()
-    {
-        // Read keyboard rotation each frame because it is device-based, not action-callback based.
-        float rotateInput = 0f;
+        // Reset the jump flag before reading the keyboard.
+        jumpPressedThisFrame = false;
+
+        // Read the current keyboard device.
         Keyboard keyboard = Keyboard.current;
 
-        if (keyboard != null)
-        {
-            // Q rotates one way and E rotates the other.
-            if (keyboard.qKey.isPressed)
-            {
-                rotateInput = -1f;
-            }
-            else if (keyboard.eKey.isPressed)
-            {
-                rotateInput = 1f;
-            }
-        }
-
-        // Skip rotation work if neither key is being pressed.
-        if (Mathf.Abs(rotateInput) <= 0f)
+        // Stop if no keyboard is available.
+        if (keyboard == null)
         {
             return;
         }
 
-        // Convert input into frame-based rotation.
-        float delta = rotateInput * rotationSpeed * Time.deltaTime;
+        // Move left when A or Left Arrow is held.
+        if (keyboard.aKey.isPressed || keyboard.leftArrowKey.isPressed)
+        {
+            moveInputX = -1f;
+        }
 
-        // Rotate the child visual if assigned, otherwise rotate the root object.
-        Transform target = purlyVisual != null ? purlyVisual : transform;
-        target.Rotate(0f, delta, 0f);
+        // Move right when D or Right Arrow is held.
+        if (keyboard.dKey.isPressed || keyboard.rightArrowKey.isPressed)
+        {
+            moveInputX = 1f;
+        }
+
+        // Store whether any supported jump key was pressed this frame.
+        jumpPressedThisFrame =
+            keyboard.spaceKey.wasPressedThisFrame ||
+            keyboard.wKey.wasPressedThisFrame ||
+            keyboard.upArrowKey.wasPressedThisFrame;
     }
 
-    void FixedUpdate()
+    private void FixedUpdate()
     {
-        // Normalize input so diagonal movement is not faster than straight movement.
-        rb.linearVelocity = moveInput.normalized * moveSpeed;
+        // Apply horizontal movement while keeping the current vertical velocity.
+        rb.linearVelocity = new Vector2(moveInputX * moveSpeed, rb.linearVelocity.y);
+
+        // Apply the jump only when the key was pressed and the player is grounded.
+        if (jumpPressedThisFrame && IsGrounded())
+        {
+            rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce);
+        }
+
+        // Clear the one-frame jump flag after the physics tick.
+        jumpPressedThisFrame = false;
+    }
+
+    private bool IsGrounded()
+    {
+        // Return false when no ground-check transform was assigned.
+        if (groundCheck == null)
+        {
+            return false;
+        }
+
+        // Return whether the ground-check circle overlaps any ground collider.
+        return Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundLayer) != null;
+    }
+
+    private void OnDrawGizmosSelected()
+    {
+        // Stop if there is no ground-check transform to preview.
+        if (groundCheck == null)
+        {
+            return;
+        }
+
+        // Draw the ground-check circle in cyan.
+        Gizmos.color = Color.cyan;
+        Gizmos.DrawWireSphere(groundCheck.position, groundCheckRadius);
     }
 }

@@ -1,32 +1,34 @@
 using UnityEngine;
 
-/// <summary>
-/// Listens for the GameOver event and hides Purly's GameObject when he dies.
-/// Attach to the Purly root GameObject.
-/// </summary>
 public class PurlyDeath : MonoBehaviour
 {
-    void OnEnable()
+    private void OnEnable()
     {
-        // Subscribe when this object becomes active so it reacts to game over.
-        if (GameManager.Instance != null)
+        // Stop if the game manager does not exist yet.
+        if (GameManager.Instance == null)
         {
-            GameManager.Instance.OnGameOver += HandleDeath;
+            return;
         }
+
+        // Subscribe to the game-over event while this object is active.
+        GameManager.Instance.OnGameOver += HandleDeath;
     }
 
-    void OnDisable()
+    private void OnDisable()
     {
-        // Unsubscribe when disabled so the handler is not left behind.
-        if (GameManager.Instance != null)
+        // Stop if the game manager does not exist anymore.
+        if (GameManager.Instance == null)
         {
-            GameManager.Instance.OnGameOver -= HandleDeath;
+            return;
         }
+
+        // Unsubscribe from the game-over event while this object is inactive.
+        GameManager.Instance.OnGameOver -= HandleDeath;
     }
 
     private void HandleDeath()
     {
-        // Hide the player object instead of destroying it outright.
+        // Hide the player object instead of destroying it.
         gameObject.SetActive(false);
     }
 }

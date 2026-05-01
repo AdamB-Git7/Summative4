@@ -3,72 +3,68 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
-/// <summary>
-/// Drives the landing/main-menu scene. Handles Enter Name, New Game, Saved Game,
-/// High Scores (shown as an overlay panel in this scene), and Exit.
-/// High scores are listed in descending order with player names, top 5.
-/// </summary>
 public class MainMenuController : MonoBehaviour
 {
-    [Header("Player Name")]
-    // Field where the player types their display name.
+    // Store the input used for the player's display name.
     public InputField playerNameInput;
 
-    [Header("Main Buttons")]
-    // Starts a fresh game.
+    // Store the button that starts a fresh game.
     public Button newGameButton;
 
-    // Resumes a paused game if one exists.
+    // Store the button that resumes a paused game.
     public Button savedGameButton;
 
-    // Opens the high-score overlay.
+    // Store the button that opens the high-score overlay.
     public Button highScoresButton;
 
-    // Closes the application.
+    // Store the button that exits the app.
     public Button exitButton;
 
-    [Header("Panels")]
-    // Panel that contains the main menu buttons.
+    // Store the panel that shows the normal menu buttons.
     public GameObject buttonPanel;
 
-    // Overlay used to show the score list in this same scene.
+    // Store the panel that shows the high-score overlay.
     public GameObject highScoresPanel;
 
-    // Text element inside the high-score overlay.
+    // Store the text element that displays the high-score list.
     public Text highScoresText;
 
-    // Button that closes the score overlay.
+    // Store the button that closes the high-score overlay.
     public Button closeHighScoresButton;
 
-    [Header("Scene")]
-    [Tooltip("Build index of the game scene.")]
-    // Scene index for the gameplay scene.
+    // Store the build index of the gameplay scene.
     public int gameSceneBuildIndex = 1;
 
-    void Start()
+    private void Start()
     {
-        // Show the main menu panel and hide the score overlay on startup.
+        // Hide the score overlay when the menu first opens.
         SetActive(highScoresPanel, false);
+
+        // Show the regular button panel when the menu first opens.
         SetActive(buttonPanel, true);
 
-        // Hook up all menu button actions.
-        newGameButton.onClick.AddListener(OnNewGame);
-        savedGameButton.onClick.AddListener(OnSavedGame);
-        highScoresButton.onClick.AddListener(OnHighScores);
-        exitButton.onClick.AddListener(OnExit);
+        // Hook the New Game button to its handler.
+        Bind(newGameButton, OnNewGame);
 
-        if (closeHighScoresButton != null)
-        {
-            closeHighScoresButton.onClick.AddListener(OnCloseHighScores);
-        }
+        // Hook the Saved Game button to its handler.
+        Bind(savedGameButton, OnSavedGame);
 
-        // Restore the last-used player name into the input field.
+        // Hook the High Scores button to its handler.
+        Bind(highScoresButton, OnHighScores);
+
+        // Hook the Exit button to its handler.
+        Bind(exitButton, OnExit);
+
+        // Hook the Close High Scores button to its handler.
+        Bind(closeHighScoresButton, OnCloseHighScores);
+
+        // Restore the last player name into the input field.
         if (playerNameInput != null)
         {
             playerNameInput.text = GameManager.GetPlayerName();
         }
 
-        // Reflect whether a paused run is actually available to resume.
+        // Enable Saved Game only when a paused run exists.
         if (savedGameButton != null)
         {
             savedGameButton.interactable = GameManager.HasSavedGame();
@@ -77,83 +73,108 @@ public class MainMenuController : MonoBehaviour
 
     private void OnNewGame()
     {
-        // Store the current name before loading the game scene.
+        // Save the entered player name before loading the game.
         ApplyPlayerName();
 
-        // Start the game scene fresh.
+        // Load the configured gameplay scene.
         SceneManager.LoadScene(gameSceneBuildIndex);
     }
 
     private void OnSavedGame()
     {
-        // Only continue if a paused game was actually stored.
+        // Stop if there is no paused game to resume.
         if (!GameManager.HasSavedGame())
         {
             return;
         }
 
-        // Keep the current name and tell the game scene to resume the saved score.
+        // Save the entered player name before loading the game.
         ApplyPlayerName();
+
+        // Tell the gameplay scene to restore the paused score.
         GameManager.ResumingSavedGame = true;
 
-        // Load the game scene in resume mode.
+        // Load the configured gameplay scene.
         SceneManager.LoadScene(gameSceneBuildIndex);
     }
 
-    /// <summary>Hides the main buttons and shows the High Scores overlay panel.</summary>
     private void OnHighScores()
     {
-        // If the overlay was not assigned, there is nothing to show.
+        // Stop if the overlay panel was not assigned.
         if (highScoresPanel == null)
         {
             return;
         }
 
-        // Load the latest score entries and convert them into display text.
+        // Load the latest saved scores.
         List<ScoreEntry> entries = ScoreUtility.LoadTopScores();
+
+        // Write the score list into the overlay text if it exists.
         if (highScoresText != null)
         {
             highScoresText.text = ScoreUtility.BuildHighScoreDisplayText(entries);
         }
 
-        // Swap panels so the overlay becomes visible.
+        // Hide the normal button panel.
         SetActive(buttonPanel, false);
+
+        // Show the score overlay panel.
         highScoresPanel.SetActive(true);
     }
 
     private void OnCloseHighScores()
     {
-        // Hide the overlay and restore the regular menu buttons.
+        // Hide the score overlay.
         SetActive(highScoresPanel, false);
+
+        // Show the normal button panel again.
         SetActive(buttonPanel, true);
     }
 
     private void OnExit()
     {
-        // Quit the built game.
+        // Quit the built application.
         Application.Quit();
 
 #if UNITY_EDITOR
-        // Also stop Play Mode when running inside the Unity Editor.
+        // Stop Play Mode when running inside the Unity Editor.
         UnityEditor.EditorApplication.isPlaying = false;
 #endif
     }
 
     private void ApplyPlayerName()
     {
-        // Save the current input field value back into the shared manager.
-        if (playerNameInput != null)
+        // Stop if there is no player-name input field.
+        if (playerNameInput == null)
         {
-            GameManager.SetPlayerName(playerNameInput.text);
+            return;
         }
+
+        // Save the current input value into the shared game state.
+        GameManager.SetPlayerName(playerNameInput.text);
+    }
+
+    private static void Bind(Button button, UnityEngine.Events.UnityAction action)
+    {
+        // Stop if the button reference is missing.
+        if (button == null)
+        {
+            return;
+        }
+
+        // Add the click callback to the button.
+        button.onClick.AddListener(action);
     }
 
     private static void SetActive(GameObject target, bool isActive)
     {
-        // Small helper to reduce repeated null checks when toggling panels.
-        if (target != null)
+        // Stop if the object reference is missing.
+        if (target == null)
         {
-            target.SetActive(isActive);
+            return;
         }
+
+        // Apply the requested active state.
+        target.SetActive(isActive);
     }
 }

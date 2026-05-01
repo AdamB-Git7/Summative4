@@ -3,232 +3,234 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-/// <summary>
-/// Central game manager. Handles score tracking, Purly's death, pause/resume,
-/// saving scores to a local file, and exposes game state to other systems.
-/// Singleton pattern: one instance persists while the game scene is active.
-/// </summary>
 public class GameManager : MonoBehaviour
 {
-    // PlayerPrefs keys used to keep pause/resume data alive across scene reloads.
+    // Store the PlayerPrefs key used for the saved score.
     private const string SavedScoreKey = "SavedGame.Score";
+
+    // Store the PlayerPrefs key used for the saved-game flag.
     private const string HasSavedGameKey = "SavedGame.HasSave";
 
-    // Global reference used by UI and gameplay scripts.
+    // Store the shared instance of this manager.
     public static GameManager Instance { get; private set; }
 
-    // True only while the player is actively playing.
+    // Store whether the current run is active.
     public bool IsPlaying { get; private set; }
 
-    // The score for the current run.
+    // Store the score for the current run.
     public int CurrentScore { get; private set; }
 
-    // UI listens to this when it needs to refresh the on-screen score.
+    // Expose score changes to UI listeners.
     public event Action<int> OnScoreChanged;
 
-    // Other systems listen to this to react to the player dying.
+    // Expose game-over state to listeners.
     public event Action OnGameOver;
 
-    // The player name is set in the menu scene before the game starts.
+    // Store the current player name across scenes.
     private static string playerName = "Player";
 
-    // The menu sets this to tell the next game scene load to resume saved score.
+    // Store whether the next game load should resume a paused run.
     public static bool ResumingSavedGame;
 
-    // These static fields preserve a paused score across scene loads.
+    // Store the paused score across scene changes.
     private static int savedScore;
+
+    // Store whether a paused run exists.
     private static bool hasSavedGame;
 
     public static void SetPlayerName(string name)
     {
-        // Fall back to "Player" if the user leaves the field blank.
+        // Save a trimmed player name or fall back to "Player".
         playerName = string.IsNullOrWhiteSpace(name) ? "Player" : name.Trim();
     }
 
-    // The menu uses this to pre-fill the name field with the latest value.
     public static string GetPlayerName()
     {
+        // Return the currently stored player name.
         return playerName;
     }
 
-    void Awake()
+    private void Awake()
     {
-        // Keep a single manager instance in the active scene.
+        // Destroy duplicate manager instances.
         if (Instance != null && Instance != this)
         {
             Destroy(gameObject);
             return;
         }
 
+        // Register this object as the shared manager instance.
         Instance = this;
     }
 
-    void Start()
+    private void Start()
     {
-        // Start or resume the session as soon as the game scene loads.
+        // Start or resume the game as soon as the scene loads.
         StartGame();
     }
 
-    /// <summary>Begins or restarts a game session.</summary>
     public void StartGame()
     {
-        // Rehydrate saved-game state in case Unity recreated static fields.
+        // Refresh saved-game values from PlayerPrefs.
         LoadSavedGameState();
 
-        // Resume the stored score only when the menu explicitly asked for it.
+        // Start from the paused score only when resume mode was requested.
         CurrentScore = ResumingSavedGame ? savedScore : 0;
 
-        // Consume the resume flag so future new games start from zero.
+        // Consume the resume flag after using it.
         ResumingSavedGame = false;
 
-        // Mark gameplay as active again and unpause time.
+        // Mark the game as active.
         IsPlaying = true;
+
+        // Ensure time is running normally.
         Time.timeScale = 1f;
 
-        // Immediately refresh any score UI.
+        // Push the initial score to listeners.
         OnScoreChanged?.Invoke(CurrentScore);
     }
 
-    /// <summary>Adds points to the current score and fires the score-changed event.</summary>
     public void AddScore(int points)
     {
-        // Ignore score changes while the game is paused or over.
+        // Ignore score changes when gameplay is inactive.
         if (!IsPlaying)
         {
             return;
         }
 
-        // Increase the score by the requested amount.
+        // Add the requested points to the current score.
         CurrentScore += points;
 
-        // Notify any listeners that the displayed score should update.
+        // Notify listeners that the score changed.
         OnScoreChanged?.Invoke(CurrentScore);
     }
 
-    /// <summary>Called when a snowball hits Purly. Ends the session and saves the score.</summary>
     public void OnPurlyDied()
     {
-        // Prevent duplicate game-over handling.
+        // Ignore duplicate death handling.
         if (!IsPlaying)
         {
             return;
         }
 
-        // Stop accepting gameplay actions and freeze the scene immediately.
+        // Mark gameplay as inactive.
         IsPlaying = false;
+
+        // Freeze the scene.
         Time.timeScale = 0f;
 
-        // Persist this run to the score file.
+        // Save the current score to disk.
         SaveScore();
 
-        // Tell UI and other systems that the run has ended.
+        // Notify listeners that the game ended.
         OnGameOver?.Invoke();
     }
 
-    /// <summary>Pauses the game and saves current score so it can be resumed.</summary>
     public void PauseGame()
     {
-        // Ignore pauses if the game is already paused or over.
+        // Ignore pause requests when gameplay is already inactive.
         if (!IsPlaying)
         {
             return;
         }
 
-        // Mark gameplay inactive and freeze time.
+        // Mark gameplay as inactive.
         IsPlaying = false;
+
+        // Freeze the scene.
         Time.timeScale = 0f;
 
-        // Remember the score so the menu's "Saved Game" option can restore it.
+        // Save the current score as the paused score.
         savedScore = CurrentScore;
+
+        // Mark that a paused game exists.
         hasSavedGame = true;
 
-        // Persist the paused run so the resume button still works after scene reloads.
+        // Persist the paused game data.
         SaveSavedGameState();
     }
 
-    /// <summary>Resumes a paused game.</summary>
     public void ResumeGame()
     {
-        // Reactivate gameplay and unfreeze time.
+        // Mark gameplay as active again.
         IsPlaying = true;
+
+        // Resume time.
         Time.timeScale = 1f;
     }
 
-    /// <summary>Returns true if there is a saved (paused) game to resume.</summary>
     public static bool HasSavedGame()
     {
-        // Rehydrate from PlayerPrefs when static state has not been initialized yet.
+        // Refresh the cached saved-game flag when needed.
         if (!hasSavedGame)
         {
             hasSavedGame = PlayerPrefs.GetInt(HasSavedGameKey, 0) == 1;
         }
 
+        // Return whether a paused run exists.
         return hasSavedGame;
     }
 
-    /// <summary>Restores the saved score when resuming via Save Game button.</summary>
     public void RestoreSavedScore()
     {
-        // Rehydrate saved-game state in case Unity recreated static fields.
+        // Refresh saved-game values from PlayerPrefs.
         LoadSavedGameState();
 
-        // Restore the saved score and refresh the HUD.
+        // Restore the paused score into the current session.
         CurrentScore = savedScore;
+
+        // Notify listeners that the score changed.
         OnScoreChanged?.Invoke(CurrentScore);
     }
 
-    /// <summary>Saves the current score (with player name) to the local scores file.</summary>
     public void SaveScore()
     {
-        // Delegate file writing to the shared score helper.
+        // Save the current score to the shared score file.
         ScoreUtility.SaveScore(playerName, CurrentScore);
     }
 
-    /// <summary>Loads all score entries from the local file and returns the top scores.</summary>
     public List<ScoreEntry> LoadScores()
     {
-        // Reuse the shared score parsing logic used by the menu screens.
+        // Return the current top scores from disk.
         return ScoreUtility.LoadTopScores();
     }
 
-    /// <summary>Reloads the active game scene to restart.</summary>
     public void RestartGame()
     {
-        // Ensure gameplay resumes when the scene reloads.
+        // Ensure the next scene starts unpaused.
         Time.timeScale = 1f;
 
-        // Reload the current scene by build index.
+        // Reload the current scene.
         SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
 
-    /// <summary>Loads the landing/main menu scene (build index 0).</summary>
     public void GoToMainMenu()
     {
-        // Ensure the menu is not loaded in a paused state.
+        // Ensure the menu scene loads unpaused.
         Time.timeScale = 1f;
 
-        // Load the first scene in the build settings.
+        // Load the first build-settings scene.
         SceneManager.LoadScene(0);
     }
 
     private static void SaveSavedGameState()
     {
-        // Store whether a paused run exists.
+        // Save whether a paused run exists.
         PlayerPrefs.SetInt(HasSavedGameKey, hasSavedGame ? 1 : 0);
 
-        // Store the paused score that should be restored on resume.
+        // Save the paused score value.
         PlayerPrefs.SetInt(SavedScoreKey, savedScore);
 
-        // Flush PlayerPrefs immediately so scene changes do not lose the data.
+        // Flush PlayerPrefs to disk immediately.
         PlayerPrefs.Save();
     }
 
     private static void LoadSavedGameState()
     {
-        // Read the last known paused-game flag.
+        // Restore the paused-game flag from PlayerPrefs.
         hasSavedGame = PlayerPrefs.GetInt(HasSavedGameKey, hasSavedGame ? 1 : 0) == 1;
 
-        // Read the last saved score, falling back to the current static value if present.
+        // Restore the paused score from PlayerPrefs.
         savedScore = PlayerPrefs.GetInt(SavedScoreKey, savedScore);
     }
 }
@@ -236,9 +238,9 @@ public class GameManager : MonoBehaviour
 [Serializable]
 public class ScoreEntry
 {
-    // The display name saved for the score row.
+    // Store the player name shown in the score list.
     public string playerName;
 
-    // The number of points earned in that run.
+    // Store the score value shown in the score list.
     public int score;
 }
